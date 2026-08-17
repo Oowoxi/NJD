@@ -1,0 +1,47 @@
+javascript:(function(){
+    // 1. حفظ الدالة الأصلية
+    var origLeave = window.leveDRoom;
+    if (typeof origLeave !== 'function') {
+        alert('❌ دالة الخروج غير موجودة');
+        return;
+    }
+
+    // 2. حفظ أي WebSocket موجود لتسجيل الرسائل
+    var ws = window.ws || window.TH_SOCKET || null;
+
+    // 3. استبدال دالة الخروج بوهمية تحافظ على الاتصال
+    window.leveDRoom = function() {
+        // تأثيرات وهمية (إخفاء الغرفة وإظهار شاشة الدخول)
+        var room = document.getElementById('room');
+        var tlogins = document.getElementById('tlogins');
+        if (room) room.style.display = 'none';
+        if (tlogins) tlogins.style.display = 'block';
+        
+        // تغيير النصوص
+        var stat = document.getElementById('loginstat');
+        if (stat) stat.innerText = 'غير متصل';
+        var count = document.getElementById('s1');
+        if (count) count.innerText = '0';
+
+        // تعطيل زر الخروج مؤقتاً لمنع الضغط المتكرر
+        var exitBtn = document.querySelector('button.fa-sign-out');
+        if (exitBtn) exitBtn.disabled = true;
+
+        // تنبيه المستخدم
+        alert('✅ خروج وهمي! الاتصال لا يزال نشطاً.');
+        console.log('%c[👻 GHOST MODE] خروج وهمي - الاتصال باقٍ', 'color: #00ff00; font-size: 16px;');
+
+        // طباعة أي رسائل تصل عبر الـ WebSocket (إن وجد)
+        if (ws && ws.onmessage) {
+            var originalOnMessage = ws.onmessage;
+            ws.onmessage = function(e) {
+                console.log('%c[📩 رسالة واردة]', 'color: #ffaa00;', e.data);
+                if (originalOnMessage) originalOnMessage.call(this, e);
+            };
+        }
+
+        // لا نستدعي الدالة الأصلية إطلاقاً (هذا هو المفتاح)
+    };
+
+    alert('✅ تم تفعيل وضع الشبح بنجاح. اضغط زر الخروج الآن.');
+})();
