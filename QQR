@@ -1,0 +1,67 @@
+javascript:(function(){
+    var origLeave = window.leveDRoom;
+    if (typeof origLeave !== 'function') {
+        alert('leveDRoom not found');
+        return;
+    }
+
+    // 1. اعتراض أي WebSocket جديد لطباعة رسائله سراً
+    if (window.WebSocket) {
+        var OrigWS = window.WebSocket;
+        window.WebSocket = function(url, protocols) {
+            var ws = new OrigWS(url, protocols);
+            var origOnMsg = ws.onmessage;
+            ws.onmessage = function(e) {
+                console.log('[GHOST MONITOR]', e.data);
+                if (origOnMsg) origOnMsg.call(this, e);
+            };
+            var origAdd = ws.addEventListener;
+            ws.addEventListener = function(type, listener, options) {
+                if (type === 'message') {
+                    return origAdd.call(this, type, function(e) {
+                        console.log('[GHOST MONITOR]', e.data);
+                        listener(e);
+                    }, options);
+                }
+                return origAdd.call(this, type, listener, options);
+            };
+            return ws;
+        };
+        window.WebSocket.prototype = OrigWS.prototype;
+        Object.keys(OrigWS).forEach(function(key) {
+            if (OrigWS.hasOwnProperty(key)) window.WebSocket[key] = OrigWS[key];
+        });
+        console.log('[Ghost] WebSocket patched');
+    }
+
+    // 2. محاولة ربط WebSocket الموجود حالياً (إن وجد)
+    for (var key in window) {
+        try {
+            var val = window[key];
+            if (val && typeof val === 'object' && val.readyState !== undefined && typeof val.onmessage === 'function') {
+                var orig = val.onmessage;
+                val.onmessage = function(e) {
+                    console.log('[GHOST MONITOR - existing]', e.data);
+                    if (orig) orig.call(this, e);
+                };
+                console.log('[Ghost] Hooked existing socket: ' + key);
+                break;
+            }
+        } catch(e) {}
+    }
+
+    // 3. استبدال دالة المغادرة (مع منع استدعائها الأصلي)
+    window.leveDRoom = function() {
+        console.log('[Ghost] Leave intercepted! Real leave BLOCKED. Connection stays alive.');
+        // تعديل واجهة المستخدم لتظهر "غير متصل"
+        document.querySelectorAll('[class*="status"], [id*="status"], [class*="online"], [id*="online"]').forEach(function(el) {
+            if (el.innerText && el.innerText.toLowerCase().includes('online')) {
+                el.innerText = 'Offline (Ghost)';
+                el.style.color = 'gray';
+            }
+        });
+        alert('[GHOST MODE] أنت الآن تبدو غير متصل في الواجهة، لكن الاتصال ما زال نشطاً. الرسائل الواردة ستظهر في Console (F12).');
+    };
+
+    alert('تم تحميل سكريبت الشبح. اضغط على زر المغادرة لتفعيله.');
+})();
