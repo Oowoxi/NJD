@@ -1,0 +1,60 @@
+javascript:(function(){
+    var orig = window.leveDRoom;
+    if (typeof orig !== 'function') {
+        alert('❌ دالة الخروج غير موجودة');
+        return;
+    }
+
+    window.leveDRoom = function() {
+        // 1. إخفاء الغرفة
+        var room = document.getElementById('room');
+        if (room) {
+            room.style.setProperty('display', 'none', 'important');
+        }
+
+        // 2. إظهار شاشة الدخول (مع فرض الأولوية)
+        var tlogins = document.getElementById('tlogins');
+        if (tlogins) {
+            tlogins.style.setProperty('display', 'block', 'important');
+            // إزالة أي class يخفيها
+            tlogins.classList.remove('hid', 'hidden', 'd-none', 'invisible');
+        }
+
+        // 3. إخفاء شريط الأدوات السفلي (إن وجد)
+        var d0 = document.getElementById('d0');
+        if (d0) d0.style.display = 'none';
+
+        // 4. إظهار تبويبات الدخول
+        var tabs = document.querySelector('.nav-tabs, .th-login-tabs');
+        if (tabs) tabs.style.display = 'block';
+
+        // 5. تحديث النصوص
+        var stat = document.getElementById('loginstat');
+        if (stat) stat.innerText = 'غير متصل';
+        var count = document.getElementById('s1');
+        if (count) count.innerText = '0';
+
+        // 6. إخفاء أي نوافذ منبثقة
+        document.querySelectorAll('.dpnl, #dpnl, .modal').forEach(function(el) {
+            el.style.display = 'none';
+        });
+
+        // 7. إعادة ضبط الخلفية (في حال وجود شاشة رمادية)
+        document.body.style.backgroundColor = '#fafafa';
+
+        // تنبيه
+        alert('✅ خروج وهمي ناجح! الاتصال ما زال نشطاً.');
+        console.log('%c[👻 GHOST MODE] خروج وهمي', 'color: #0f0; font-size: 16px;');
+
+        // 8. (اختياري) محاولة التقاط رسائل WebSocket وطباعتها
+        if (window.ws && window.ws.onmessage) {
+            var old = window.ws.onmessage;
+            window.ws.onmessage = function(e) {
+                console.log('%c[📩 رسالة]', 'color: #ffa500;', e.data);
+                if (old) old.call(this, e);
+            };
+        }
+    };
+
+    alert('✅ تم تفعيل وضع الشبح. اضغط على زر الخروج الآن.');
+})();
