@@ -1,0 +1,78 @@
+javascript:(function(){
+    console.log('%c[SecurityTest] تفعيل وضع الاختفاء الخادع (Tiger-Host Edition)', 'color: orange; font-size: 16px;');
+
+    // --- 1. اعتراض الحدث الرئيسي للمغادرة في Socket.io (الأساسي في تايجر هوست) ---
+    if (typeof io !== 'undefined' && io.socket && typeof io.socket.emit === 'function') {
+        const originalEmit = io.socket.emit;
+        io.socket.emit = function(event, ...args) {
+            // قائمة أوامر الخروج المستخدمة في تايجر هوست
+            const leaveEvents = ['leave', 'leave_room', 'disconnect', 'disconnecting', 'exit_room', 'user_leave'];
+            if (leaveEvents.includes(event)) {
+                console.log(`%c[SecurityTest] ✅ تم حجب حدث الخروج: ${event} عن الخادم`, 'color: lime;');
+                // لا نستدعي originalEmit، فيظل الاتصال حياً
+                return false;
+            }
+            // نمرر باقي الأحداث (رسائل، ping) بشكل طبيعي للحفاظ على نبضات القلب
+            return originalEmit.apply(this, args);
+        };
+        console.log('[SecurityTest] تم اعتراض io.socket.emit');
+    }
+
+    // --- 2. اعتراض WebSocket الخام تحسباً (في حال استخدمته المكتبة كنسخة احتياطية) ---
+    if (window.WebSocket) {
+        const originalSend = WebSocket.prototype.send;
+        WebSocket.prototype.send = function(data) {
+            try {
+                const str = data.toString();
+                // نبحث عن كلمات الخروج في الحزم النصية أو JSON
+                if (str.includes('leave') || str.includes('disconnect') || str.includes('exit')) {
+                    console.log('[SecurityTest] ✅ تم اعتراض حزمة WebSocket تحتوي على أمر خروج.');
+                    return; // نمنع إرسالها
+                }
+            } catch(e) {}
+            return originalSend.apply(this, arguments);
+        };
+        console.log('[SecurityTest] تم اعتراض WebSocket.send');
+    }
+
+    // --- 3. استبدال الدالة الأصلية leveDRoom لمنع أي إعادة توجيه أو تنفيذ جانبي ---
+    if (typeof window.leveDRoom === 'function') {
+        const originalLeave = window.leveDRoom;
+        window.leveDRoom = function() {
+            console.log('[SecurityTest] تم الضغط على زر الخروج. سيتم إخفاؤك من الواجهة فقط.');
+            // إخفاء صف المستخدم الحالي من قائمة الـ Users محلياً (وهم بصري)
+            try {
+                // نحاول إيجاد اسم المستخدم من المتغيرات العامة (MY_NAME أو MY_T)
+                const myName = window.MY_NAME || window.MY_T || 'أنت';
+                document.querySelectorAll('#users .uzr').forEach(el => {
+                    if (el.innerText.includes(myName) || el.querySelector('.u-topic')?.innerText === myName) {
+                        el.style.display = 'none';
+                    }
+                });
+            } catch(e) {}
+            // لا نستدعي originalLeave()، لذا لا يحدث قطع للاتصال
+            return false;
+        };
+        console.log('[SecurityTest] تم استبدال دالة leveDRoom بوهم بصري.');
+    } else {
+        // إذا لم توجد الدالة، ننشئها لمنع ظهور أخطاء JavaScript
+        window.leveDRoom = function() {
+            console.log('[SecurityTest] دالة leveDRoom غير موجودة، تم إنشاء وهم لها.');
+            return false;
+        };
+    }
+
+    // --- 4. اعتراض أي أمر disconnect في الكائن العام socket (احتياطي آخر) ---
+    if (window.socket && typeof window.socket.emit === 'function') {
+        const origSocketEmit = window.socket.emit;
+        window.socket.emit = function(event, ...args) {
+            if (['leave', 'disconnect', 'exit'].includes(event)) {
+                console.log(`[SecurityTest] ✅ تم حجب الأمر ${event} من window.socket`);
+                return;
+            }
+            return origSocketEmit.apply(this, args);
+        };
+    }
+
+    alert('[SecurityTest] تم التفعيل بنجاح! اضغط الآن "خروج" في الواجهة. ستختفي من القائمة محلياً، لكن الخادم سيظل يعتبرك متصلاً. راقب الـ Console لمشاهدة الحزم المحجوبة.');
+})();
