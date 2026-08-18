@@ -1,0 +1,64 @@
+javascript:(function(){
+    console.log('[SecurityTest] بدء محاكاة الاختفاء مع بقاء الاتصال...');
+
+    // 1. منع إرسال أي أمر "مغادرة" عبر Socket.io (الأكثر شيوعاً)
+    if(window.io && window.io.socket && window.io.socket.emit){
+        const originalEmit = window.io.socket.emit;
+        window.io.socket.emit = function(event, ...args){
+            // قائمة بأوامر المغادرة التي سنحجبها عن الخادم
+            const leaveEvents = ['leave', 'leave_room', 'disconnect', 'disconnecting', 'exit', 'leaveRoom'];
+            if(leaveEvents.includes(event)) {
+                console.log('[SecurityTest] ✅ تم اعتراض أمر الخروج "'+event+'" ومنع إرساله للخادم.');
+                // لا نستدعي originalEmit، لذا الخادم لا يعلم شيئاً
+                return false;
+            }
+            // نمرر باقي الأحداث (مثل الرسائل، Ping، الخ) بشكل طبيعي
+            return originalEmit.apply(this, args);
+        };
+        console.log('[SecurityTest] تم اعتراض socket.emit بنجاح');
+    }
+
+    // 2. اعتراض WebSocket الخام (في حال كنت تستخدمه مباشرة بدون Socket.io)
+    if(window.WebSocket){
+        const originalSend = WebSocket.prototype.send;
+        WebSocket.prototype.send = function(data){
+            try {
+                const str = data.toString();
+                // لو كانت الحزمة تحتوي على أوامر مغادرة في سياق JSON
+                if(str.includes('leave') || str.includes('disconnect') || str.includes('exit')) {
+                    console.log('[SecurityTest] ✅ تم اعتراض حزمة WebSocket تحتوي على مغادرة.');
+                    return; // منع الإرسال
+                }
+            } catch(e) {}
+            // نمرر باقي الحزم للمحافظة على نبضات القلب (Ping)
+            return originalSend.apply(this, arguments);
+        };
+        console.log('[SecurityTest] تم اعتراض WebSocket.send بنجاح');
+    }
+
+    // 3. محاكاة وهمية للخروج في الواجهة الأمامية (UI) دون التأثير على الاتصال
+    // لنفترض أنك تستخدم دالة leaveDRoom، نستبدلها بوظيفة وهمية لتغيير الشكل فقط
+    if(typeof window.leveDRoom === 'function'){
+        const origLeave = window.leveDRoom;
+        window.leveDRoom = function(){
+            console.log('[SecurityTest] تم استدعاء زر المغادرة. سنخفي العناصر فقط.');
+            // مثلاً: إخفاء اسم المستخدم من قائمة الحضور محلياً
+            document.querySelectorAll('.user-item, .player-name, .participant').forEach(el => {
+                if(el.innerText.includes('YourName')) { // عدلها حسب اسمك
+                    el.style.display = 'none';
+                }
+            });
+            // نعيد false لمنع إعادة التوجيه، ولا نستدعي origLeave
+            return false;
+        };
+    }
+
+    // 4. منع المتصفح من إنهاء الاتصال عند محاولة إغلاق الصفحة (اختبار الضغط)
+    window.addEventListener('beforeunload', function(e) {
+        e.preventDefault();
+        e.returnValue = '';
+        console.log('[SecurityTest] تم منع إغلاق التاب للحفاظ على الاتصال المخفي.');
+    });
+
+    alert('[SecurityTest] تم التفعيل! الآن اضغط "مغادرة" في واجهتك، ستختفي من القائمة محلياً، لكن الخادم لن يستقبل أمر المغادرة، وستبقى تستقبل الرسائل. راقب الـ Console لترى الحزم المحجوبة.');
+})();
